@@ -10,6 +10,15 @@ namespace EternalCardFetcher
     {
         static void Main(string[] args)
         {
+
+            string username = args[0];
+            string password = args[1];
+
+            var eternalBot = new EternalBot(username,password);
+            eternalBot.StartBot();
+            eternalBot.ConsumeComments();
+            Console.ReadLine();
+
         }
     }
 }
