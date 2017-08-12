@@ -7,11 +7,13 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using NLog;
 
 namespace EternalCardFetcher
 {
     class EternalBot
     {
+        static Logger logger = LogManager.GetCurrentClassLogger(); 
         List<EternalCard> _cards;
         List<string> _repliedToComments;
 
@@ -25,6 +27,7 @@ namespace EternalCardFetcher
         string _repliedCommentsFile = "replied_comments.txt";
 
         string _syntaxRegex = @"\[\[.*?\]\]";
+        Reddit reddit;
 
         public EternalBot(string username, string password, string publicKey, string privateKey)
         {
@@ -42,6 +45,7 @@ namespace EternalCardFetcher
         {
             if (!File.Exists(_repliedCommentsFile))
             {
+                logger.Info("Had to recreate saved comments file");
                 using (File.Create(_repliedCommentsFile))
                 {
 
@@ -57,42 +61,57 @@ namespace EternalCardFetcher
         public void StartBot()
         {
             var webAgent = new BotWebAgent(_username, _password,_publicKey , _privateKey, @"https://github.com/Fluzzarn/EternalCardFetcher/tree/master");
-            var reddit = new Reddit(webAgent, true);
-            _subreddit = reddit.GetSubreddit("testingground4bots");
-           // _subreddit.Subscribe();
+             reddit = new Reddit(webAgent, true);
+
+            logger.Info("Logged into reddit");
         }
 
 
         public void LoadJSON(string jsonFile)
         {
             _cards = JsonConvert.DeserializeObject<List<EternalCard>>(File.ReadAllText(jsonFile));
-
-            Console.WriteLine(_cards.Count);
+            logger.Info("Loaded cards.json");
         }
 
-        public void ConsumeComments()
+        public void ConsumeComments(string subreddit)
         {
+            _subreddit = reddit.GetSubreddit(subreddit);
             foreach (var comment in _subreddit.CommentStream)
             {
-                if (comment.AuthorName == "Fluzzarn" && !_repliedToComments.Contains( (comment.Id)))
+                if (!_repliedToComments.Contains( (comment.Id)))
                 {
                     string message = "";
+                    int numMatches = 0;
                     foreach (Match match in Regex.Matches(comment.Body,_syntaxRegex))
                     {
                         string cardName = match.Value.Trim('[').Trim(']');
-                        Console.WriteLine(cardName);
-                        EternalCard card = _cards.Where((x) => x.Name == cardName).First();
+                        EternalCard card = _cards.Where((x) => x.Name == cardName).FirstOrDefault();
                         if (card != null)
                         {
-
+                            numMatches++;
                             message += @"[" + cardName + "](" + card.ImageUrl + ") - [EWC](https://eternalwarcry.com/cards/details/" + card.SetNumber + "-" + card.EternalID + "/" + card.Name.ToLower().Replace(' ', '-') + ")  " + Environment.NewLine;
                         }
                     }
-                    comment.Reply(message);
-                    File.AppendAllText(_repliedCommentsFile, comment.Id + Environment.NewLine);
-                    _repliedToComments.Add((comment.Id));
+                    message += "^^^[[cardname]] ^^^to ^^^call";
+                    try
+                    {
+                        if (numMatches >= 1)
+                        {
+                            comment.Reply(message);
+                        }
+                        File.AppendAllText(_repliedCommentsFile, comment.Id + Environment.NewLine);
+                        _repliedToComments.Add((comment.Id));
+                        logger.Info("Processed Comment " + comment.Id + " by " + comment.AuthorName + ", there were " + numMatches + " matches");
+                    }
+                    catch (RedditException ex)
+                    {
+
+                        logger.Error(ex.Message);
+                        logger.Error(ex.StackTrace);
+                    }
+
                 }
-                Console.WriteLine(comment.Body);
+                
             }
         }
     }

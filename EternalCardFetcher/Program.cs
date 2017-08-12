@@ -13,10 +13,13 @@ namespace EternalCardFetcher
 
             string username = args[0];
             string password = args[1];
+            string publicKey = args[2];
+            string privateKey = args[3];
+            string subreddit = args[4];
 
-            var eternalBot = new EternalBot(username,password);
+            var eternalBot = new EternalBot(username,password,publicKey,privateKey);
             eternalBot.StartBot();
-            eternalBot.ConsumeComments();
+            eternalBot.ConsumeComments(subreddit);
             Console.ReadLine();
 
         }
