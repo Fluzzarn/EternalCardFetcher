@@ -11,7 +11,7 @@ using NLog;
 
 namespace EternalCardFetcher
 {
-    class EternalBot
+    class EternalBot: IRedditBot
     {
         static Logger logger = LogManager.GetCurrentClassLogger(); 
         List<EternalCard> _cards;
@@ -78,21 +78,18 @@ namespace EternalCardFetcher
             _subreddit = reddit.GetSubreddit(subreddit);
             foreach (var comment in _subreddit.CommentStream)
             {
+                if (comment.AuthorName == _username)
+                {
+                    _repliedToComments.Add((comment.Id));
+                    continue;
+                }
                 if (!_repliedToComments.Contains( (comment.Id)))
                 {
                     string message = "";
                     int numMatches = 0;
-                    foreach (Match match in Regex.Matches(comment.Body,_syntaxRegex))
-                    {
-                        string cardName = match.Value.Trim('[').Trim(']');
-                        EternalCard card = _cards.Where((x) => x.Name == cardName).FirstOrDefault();
-                        if (card != null)
-                        {
-                            numMatches++;
-                            message += @"[" + cardName + "](" + card.ImageUrl + ") - [EWC](https://eternalwarcry.com/cards/details/" + card.SetNumber + "-" + card.EternalID + "/" + card.Name.ToLower().Replace(' ', '-') + ")  " + Environment.NewLine;
-                        }
-                    }
-                    message += "^^^[[cardname]] ^^^to ^^^call";
+                    FindCardsInBrackets(comment, ref message, ref numMatches);
+                    FindDecklist(comment, ref message, ref numMatches);
+                    message += "^^^[[cardname]] ^^^to ^^^call ^^^or ^^^post ^^^a ^^^decklist";
                     try
                     {
                         if (numMatches >= 1)
@@ -111,7 +108,49 @@ namespace EternalCardFetcher
                     }
 
                 }
-                
+
+            }
+        }
+
+        private void FindCardsInBrackets(RedditSharp.Things.Comment comment, ref string message, ref int numMatches)
+        {
+            foreach (Match match in Regex.Matches(comment.Body, _syntaxRegex))
+            {
+                string cardName = match.Value.Trim('[').Trim(']');
+                EternalCard card = _cards.Where((x) => x.Name == cardName).FirstOrDefault();
+                if (card != null)
+                {
+                    numMatches++;
+                    message += @"[" + cardName + "](" + card.ImageUrl + ") - [EWC](https://eternalwarcry.com/cards/details/" + card.SetNumber + "-" + card.EternalID + "/" + card.Name.ToLower().Replace(' ', '-') + ")  " + Environment.NewLine;
+                }
+            }
+        }
+        private void FindDecklist(RedditSharp.Things.Comment comment, ref string message, ref int numMatches)
+        {
+            _syntaxRegex = @"\d{1,2}\s[A-Z].*[a-z]\s";
+            string tempMessage = "";
+            int tempNumMatches = 0;
+            int totalAmount = 0;
+            foreach (Match match in Regex.Matches(comment.Body, _syntaxRegex))
+            {
+                string amountString = match.Value.Substring(0, 2);
+                int amount = Convert.ToInt32(amountString);
+                totalAmount += amount;
+                string cardName = match.Value.Trim(' ').Trim(' ').Substring(2);
+                EternalCard card = _cards.Where((x) => x.Name == cardName).FirstOrDefault();
+                if (card != null)
+                {
+                    
+                    tempMessage += @"[" + cardName + "](" + card.ImageUrl + ") - [EWC](https://eternalwarcry.com/cards/details/" + card.SetNumber + "-" + card.EternalID + "/" + card.Name.ToLower().Replace(' ', '-') + ")  " + Environment.NewLine;
+                    tempNumMatches++;
+
+                }
+            }
+
+            if (totalAmount == 45 || totalAmount == 75)
+            {
+                message += tempMessage;
+                numMatches += tempNumMatches;
             }
         }
     }

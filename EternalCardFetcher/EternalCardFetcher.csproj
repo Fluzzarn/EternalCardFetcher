@@ -54,6 +54,8 @@
   <ItemGroup>
     <Compile Include="EternalBot.cs" />
     <Compile Include="EternalCard.cs" />
+    <Compile Include="IRedditBot.cs" />
+    <Compile Include="OfflineEternalBot.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
